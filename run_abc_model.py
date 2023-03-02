@@ -23,21 +23,18 @@ if platform.system() == 'Darwin':
 else:
     root_path = '/geoinfo_vol1/zhao2/abc_challenge_models'
 
-def wandb_config(model_name):
+def wandb_config(model_name, num_layers, hidden_size):
     wandb.login()
-    # wandb.init(project="tokenized_window_size" + str(window_size) + str(model_name) + 'run' + str(run), entity="zhaoyutim")
     wandb.init(project="abc_challenge_"+model_name+"_grid_search", entity="zhaoyutim")
-    # wandb.run.name = 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)
-    # wandb.config = {
-    #     "learning_rate": learning_rate,
-    #     "weight_decay": weight_decay,
-    #     "epochs": MAX_EPOCHS,
-    #     "batch_size": batch_size,
-    #     "num_heads": num_heads,
-    #     "num_layers": num_layers,
-    #     "mlp_dim": mlp_dim,
-    #     "embed_dim": hidden_size
-    # }
+    wandb.run.name = 'num_layers_'+ str(num_layers)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)
+    wandb.config = {
+        "learning_rate": learning_rate,
+        "weight_decay": weight_decay,
+        "epochs": MAX_EPOCHS,
+        "batch_size": batch_size,
+        "num_layers": num_layers,
+        "embed_dim": hidden_size
+    }
 
 def get_dataset():
     trainset = h5py.File("africa-biomass-challenge/09072022_1154_train.h5", "r")
