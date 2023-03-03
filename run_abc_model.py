@@ -89,7 +89,7 @@ if __name__=='__main__':
     MAX_EPOCHS = 50
 
     train_images_norm, train_biomasses, validate_images_norm, validate_biomasses, test_images_norm, test_biomasses = get_dataset()
-    wandb_config(model_name)
+    wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
 
     if model_name == 'gru_custom':
@@ -108,7 +108,7 @@ if __name__=='__main__':
             tf.keras.metrics.RootMeanSquaredError(name="rmse")
         ],
     )
-    checkpoint = ModelCheckpoint(os.path.join(root_path, 'proj3_' + model_name + str(hidden_size) + '_' + str(num_layers)),
+    checkpoint = ModelCheckpoint(os.path.join(root_path, 'abc_' + model_name + str(hidden_size) + '_' + str(num_layers)),
                                  monitor="val_loss", mode="min", save_best_only=True, verbose=1)
     history = model.fit(
         x=train_images_norm,
@@ -118,12 +118,12 @@ if __name__=='__main__':
         callbacks=[WandbCallback()],
     )
     # model.save(os.path.join(root_path, 'proj3_' + model_name + str(hidden_size) + '_' + str(num_layers)))
-    # s2_images_h5 = h5py.File("africa-biomass-challenge/images_test.h5", "r")
-    # s2_images = np.array(s2_images_h5["images"])
-    # s2_images = s2_images.transpose(0, 3, 1, 2)
+    s2_images_h5 = h5py.File("africa-biomass-challenge/images_test.h5", "r")
+    s2_images = np.array(s2_images_h5["images"])
+    s2_images = s2_images.transpose(0, 3, 1, 2)
     # model.load_weights()
-    # pred_giz = model.predict(s2_images)
-    # ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
-    # preds = pd.DataFrame({'Target': pred_giz}).rename_axis('S2_idx').reset_index()
-    # preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
-    # preds.to_csv('GIZ_Biomass_predictions.csv', index=False)
+    pred_giz = model.predict(s2_images)
+    ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
+    preds = pd.DataFrame({'Target': pred_giz}).rename_axis('S2_idx').reset_index()
+    preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
+    preds.to_csv('africa-biomass-challenge/biomass_predictions'+ model_name + str(hidden_size) + '_' + str(num_layers)+'.csv', index=False)

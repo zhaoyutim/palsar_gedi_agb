@@ -1,7 +1,5 @@
 import keras.backend as K
 import tensorflow as tf
-from tensorflow.keras.layers import Bidirectional
-
 
 class GRUModel:
     def __init__(self, input_shape, num_classes):
