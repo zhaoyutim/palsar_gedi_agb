@@ -56,17 +56,24 @@ def get_dataset():
     test_images = test_images.transpose(0,3,1,2)
     test_biomasses = np.array(testset['agbd'],dtype=np.float32)
 
+    # infer
+    infer_images = h5py.File("africa-biomass-challenge/images_test.h5", "r")
+    infer_images = np.array(infer_images["images"])
+    infer_images = infer_images.transpose(0, 3, 1, 2)
+
     MEAN = train_images.mean((0, 2, 3))
     STD = train_images.std((0, 2, 3))
     train_images_norm = (train_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
     validate_images_norm = (validate_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
     test_images_norm = (test_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
+    infer_images_norm = (infer_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
 
     train_images_norm = train_images_norm.reshape((train_images_norm.shape[0], train_images_norm.shape[1], -1))
     validate_images_norm = validate_images_norm.reshape((validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
     test_images_norm = test_images_norm.reshape((test_images_norm.shape[0], test_images_norm.shape[1], -1))
+    infer_images_norm = infer_images_norm.reshape((infer_images_norm.shape[0], infer_images_norm.shape[1], -1))
 
-    return train_images_norm, train_biomasses, validate_images_norm, validate_biomasses, test_images_norm, test_biomasses
+    return train_images_norm, train_biomasses, validate_images_norm, validate_biomasses, test_images_norm, test_biomasses, infer_images_norm
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -88,7 +95,7 @@ if __name__=='__main__':
     weight_decay = lr/10
     MAX_EPOCHS = 50
 
-    train_images_norm, train_biomasses, validate_images_norm, validate_biomasses, test_images_norm, test_biomasses = get_dataset()
+    train_images_norm, train_biomasses, validate_images_norm, validate_biomasses, test_images_norm, test_biomasses, infer_images_norm = get_dataset()
     wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
 
@@ -115,14 +122,12 @@ if __name__=='__main__':
         y=train_biomasses,
         validation_data=(validate_images_norm, validate_biomasses),
         epochs=MAX_EPOCHS,
-        callbacks=[WandbCallback()],
+        callbacks=[checkpoint, WandbCallback()],
     )
     # model.save(os.path.join(root_path, 'proj3_' + model_name + str(hidden_size) + '_' + str(num_layers)))
-    s2_images_h5 = h5py.File("africa-biomass-challenge/images_test.h5", "r")
-    s2_images = np.array(s2_images_h5["images"])
-    s2_images = s2_images.transpose(0, 3, 1, 2)
-    # model.load_weights()
-    pred_giz = model.predict(s2_images)
+
+    model.load_weights(os.path.join(root_path, 'abc_' + model_name + str(hidden_size) + '_' + str(num_layers)))
+    pred_giz = model.predict(infer_images_norm)
     ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
     preds = pd.DataFrame({'Target': pred_giz}).rename_axis('S2_idx').reset_index()
     preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
