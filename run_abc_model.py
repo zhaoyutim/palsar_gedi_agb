@@ -40,39 +40,56 @@ def get_dataset():
     trainset = h5py.File("africa-biomass-challenge/09072022_1154_train.h5", "r")
     validateset = h5py.File("africa-biomass-challenge/09072022_1154_val.h5", "r")
     testset = h5py.File("africa-biomass-challenge/09072022_1154_test.h5", "r")
-    def feature_engineering(array):
+    def feature_engineering(array, scl, cloud, lat, lon):
         dvi = array[:, [7], :, :] / (array[:, [3], :, :] + 1e6)
         ndvi = (array[:, [7], :, :] - array[:, [3], :, :]) / (array[:, [7], :, :] + array[:, [3], :, :] + 1e6)
         ndvi2 = (array[:, [8], :, :] - array[:, [3], :, :]) / (array[:, [8], :, :] + array[:, [3], :, :] + 1e6)
         gndvi = (array[:, [7], :, :] - array[:, [2], :, :]) / (array[:, [7], :, :] + array[:, [2], :, :] + 1e6)
         ndi45 = (array[:, [4], :, :] - array[:, [3], :, :]) / (array[:, [4], :, :] + array[:, [3], :, :] + 1e6)
         ndre = (array[:, [7], :, :] - array[:, [4], :, :]) / (array[:, [7], :, :] + array[:, [4], :, :] + 1e6)
-        array = np.concatenate([array[:, [2], :, :], array[:, [3], :, :], array[:, [4], :, :], array[:, [7], :, :], array[:, [8], :, :], dvi, ndvi, ndvi2, gndvi, ndi45, ndre], axis=1)
+        array = np.concatenate([array, scl, cloud, lat, lon, dvi, ndvi, ndvi2, gndvi, ndi45, ndre], axis=1)
         return array
 
     # train
-    train_images = np.array(trainset['images'], dtype=np.float64)
-    train_images = train_images.transpose(0, 3, 1, 2)
+    train_images = np.array(trainset['images'], dtype=np.float64).transpose(0, 3, 1, 2)
+    train_scl = np.array(trainset['scl'], dtype=np.float64).transpose(0, 3, 1, 2)
+    train_cloud = np.array(trainset['cloud'], dtype=np.float64).transpose(0, 3, 1, 2)
+    train_lat = np.array(trainset['lat'], dtype=np.float64).transpose(0, 3, 1, 2)
+    train_lon = np.array(trainset['lon'], dtype=np.float64).transpose(0, 3, 1, 2)
     train_biomasses = np.array(trainset['agbd'], dtype=np.float64)
-    train_images = feature_engineering(train_images)
+    train_images = feature_engineering(train_images, train_scl, train_cloud, train_lat, train_lon)
 
     # validate
-    validate_images = np.array(validateset['images'], dtype=np.float64)
-    validate_images = validate_images.transpose(0, 3, 1, 2)
+    validate_images = np.array(validateset['images'], dtype=np.float64).transpose(0, 3, 1, 2)
+    validate_scl = np.array(validateset['scl'], dtype=np.float64).transpose(0, 3, 1, 2)
+    validate_cloud = np.array(validateset['cloud'], dtype=np.float64).transpose(0, 3, 1, 2)
+    validate_lat = np.array(validateset['lat'], dtype=np.float64).transpose(0, 3, 1, 2)
+    validate_lon = np.array(validateset['lon'], dtype=np.float64).transpose(0, 3, 1, 2)
     validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
-    validate_images = feature_engineering(validate_images)
+    validate_images = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon)
 
     # test
-    test_images = np.array(testset['images'], dtype=np.float32)
-    test_images = test_images.transpose(0, 3, 1, 2)
+    test_images = np.array(testset['images'], dtype=np.float32).transpose(0, 3, 1, 2)
+    test_scl = np.array(testset['scl'], dtype=np.float64).transpose(0, 3, 1, 2)
+    test_cloud = np.array(testset['cloud'], dtype=np.float64).transpose(0, 3, 1, 2)
+    test_lat = np.array(testset['lat'], dtype=np.float64).transpose(0, 3, 1, 2)
+    test_lon = np.array(testset['lon'], dtype=np.float64).transpose(0, 3, 1, 2)
     test_biomasses = np.array(testset['agbd'], dtype=np.float32)
-    test_images = feature_engineering(test_images)
+    test_images = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon)
 
     # infer
     infer_images = h5py.File("africa-biomass-challenge/images_test.h5", "r")
-    infer_images = np.array(infer_images["images"])
-    infer_images = infer_images.transpose(0, 3, 1, 2)
-    infer_images = feature_engineering(infer_images)
+    infer_images = np.array(infer_images["images"]).transpose(0, 3, 1, 2)
+    infer_scl = h5py.File("africa-biomass-challenge/scl_test.h5", "r")
+    infer_scl = np.array(infer_scl["scl"]).transpose(0, 3, 1, 2)
+    infer_cloud = h5py.File("africa-biomass-challenge/cloud_test.h5", "r")
+    infer_cloud = np.array(infer_cloud["cloud"]).transpose(0, 3, 1, 2)
+    infer_lat = h5py.File("africa-biomass-challenge/lat_test.h5", "r")
+    infer_lat = np.array(infer_lat["lat"]).transpose(0, 3, 1, 2)
+    infer_lon = h5py.File("africa-biomass-challenge/lon_test.h5", "r")
+    infer_lon = np.array(infer_lon["lon"]).transpose(0, 3, 1, 2)
+
+    infer_images = feature_engineering(infer_images, infer_scl, infer_cloud, infer_lat, infer_lon)
 
     MEAN = train_images.mean((0, 2, 3))
     STD = train_images.std((0, 2, 3))
