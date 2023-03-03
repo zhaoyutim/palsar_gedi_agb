@@ -47,7 +47,7 @@ def get_dataset():
         gndvi = (array[:, [7], :, :] - array[:, [2], :, :]) / (array[:, [7], :, :] + array[:, [2], :, :] + 1e6)
         ndi45 = (array[:, [4], :, :] - array[:, [3], :, :]) / (array[:, [4], :, :] + array[:, [3], :, :] + 1e6)
         ndre = (array[:, [7], :, :] - array[:, [4], :, :]) / (array[:, [7], :, :] + array[:, [4], :, :] + 1e6)
-        array = np.concatenate([array, dvi, ndvi, ndvi2, gndvi, ndi45, ndre], axis=1)
+        array = np.concatenate([array[:, [2], :, :], array[:, [3], :, :], array[:, [4], :, :], array[:, [7], :, :], array[:, [8], :, :], dvi, ndvi, ndvi2, gndvi, ndi45, ndre], axis=1)
         return array
 
     # train
