@@ -40,26 +40,39 @@ def get_dataset():
     trainset = h5py.File("africa-biomass-challenge/09072022_1154_train.h5", "r")
     validateset = h5py.File("africa-biomass-challenge/09072022_1154_val.h5", "r")
     testset = h5py.File("africa-biomass-challenge/09072022_1154_test.h5", "r")
-    # train
-    train_images = np.array(trainset['images'],dtype=np.float64)
-    train_images = train_images.transpose(0,3,1,2)
+    def feature_engineering(array):
+        dvi = array[:, [7], :, :] / array[:, [3], :, :]
+        ndvi = (array[:, [7], :, :] - array[:, [3], :, :]) / (array[:, [7], :, :] + array[:, [3], :, :])
+        ndvi2 = (array[:, [8], :, :] - array[:, [3], :, :]) / (array[:, [8], :, :] + array[:, [3], :, :])
+        gndvi = (array[:, [7], :, :] - array[:, [2], :, :]) / (array[:, [7], :, :] + array[:, [2], :, :])
+        ndi45 = (array[:, [4], :, :] - array[:, [3], :, :]) / (array[:, [4], :, :] + array[:, [3], :, :])
+        ndre = (array[:, [7], :, :] - array[:, [4], :, :]) / (array[:, [7], :, :] + array[:, [4], :, :])
+        array = np.concatenate([array, dvi, ndvi, ndvi2, gndvi, ndi45, ndre], axis=1)
+        return array
 
-    train_biomasses = np.array(trainset['agbd'],dtype=np.float64)
+    # train
+    train_images = np.array(trainset['images'], dtype=np.float64)
+    train_images = train_images.transpose(0, 3, 1, 2)
+    train_biomasses = np.array(trainset['agbd'], dtype=np.float64)
+    train_images = feature_engineering(train_images)
 
     # validate
-    validate_images = np.array(validateset['images'],dtype=np.float64)
-    validate_images = validate_images.transpose(0,3,1,2)
-    validate_biomasses = np.array(validateset['agbd'],dtype=np.float64)
+    validate_images = np.array(validateset['images'], dtype=np.float64)
+    validate_images = validate_images.transpose(0, 3, 1, 2)
+    validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
+    validate_images = feature_engineering(validate_images)
 
     # test
-    test_images = np.array(testset['images'],dtype=np.float32)
-    test_images = test_images.transpose(0,3,1,2)
-    test_biomasses = np.array(testset['agbd'],dtype=np.float32)
+    test_images = np.array(testset['images'], dtype=np.float32)
+    test_images = test_images.transpose(0, 3, 1, 2)
+    test_biomasses = np.array(testset['agbd'], dtype=np.float32)
+    test_images = feature_engineering(test_images)
 
     # infer
     infer_images = h5py.File("africa-biomass-challenge/images_test.h5", "r")
     infer_images = np.array(infer_images["images"])
     infer_images = infer_images.transpose(0, 3, 1, 2)
+    infer_images = feature_engineering(infer_images)
 
     MEAN = train_images.mean((0, 2, 3))
     STD = train_images.std((0, 2, 3))
@@ -89,13 +102,14 @@ if __name__=='__main__':
     hidden_size=args.ed
 
     num_classes = 1
-    input_shape = (12, 15*15)
+
     lr = args.lr
     learning_rate = lr
     weight_decay = lr/10
     MAX_EPOCHS = 50
 
     train_images_norm, train_biomasses, validate_images_norm, validate_biomasses, test_images_norm, test_biomasses, infer_images_norm = get_dataset()
+    input_shape = (train_images_norm.shape[1], train_images_norm.shape[2])
     wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
 
