@@ -87,12 +87,11 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         self.combine_heads = tf.keras.layers.Dense(hidden_size, name="out")
         self.softmax = tf.keras.layers.Softmax()
     # pylint: disable=no-self-use
-    def attention(self, query, key, value, attention_mask):
+    def attention(self, query, key, value):
         score = tf.matmul(query, key, transpose_b=True)
         dim_key = tf.cast(tf.shape(key)[-1], score.dtype)
         scaled_score = score / tf.math.sqrt(dim_key)
-        # weights = tf.nn.softmax(scaled_score, axis=-1)
-        weights = self._masked_softmax(scaled_score, attention_mask)
+        weights = tf.nn.softmax(scaled_score, axis=-1)
         output = tf.matmul(weights, value)
         return output, weights
 
@@ -112,11 +111,7 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         key = self.separate_heads(key, batch_size)
         value = self.separate_heads(value, batch_size)
 
-        tri_matrix = tf.stack([tf.experimental.numpy.tril(tf.ones([batch_size, self.sequence_length,self.sequence_length]), 0)]*self.num_heads)
-        tri_matrix = tf.transpose(tri_matrix, perm=[1, 0, 2, 3])
-        attention_mask = tf.reshape(tri_matrix, (batch_size, self.num_heads, self.sequence_length, -1))
-
-        attention, weights = self.attention(query, key, value, attention_mask)
+        attention, weights = self.attention(query, key, value)
         attention = tf.transpose(attention, perm=[0, 2, 1, 3])
         concat_attention = tf.reshape(attention, (batch_size, -1, self.hidden_size))
         output = self.combine_heads(concat_attention)

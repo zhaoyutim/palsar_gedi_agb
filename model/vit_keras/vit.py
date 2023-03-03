@@ -105,6 +105,7 @@ def build_model(
         y = tf.keras.layers.Dense(
             representation_size, name="pre_logits", activation="tanh"
         )(y)
+    y = tf.keras.layers.Flatten()(y)
     if include_top:
         y = tf.keras.layers.Dense(classes, name="head", activation=activation)(y)
     return tf.keras.models.Model(inputs=x, outputs=y, name=name)

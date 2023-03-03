@@ -16,6 +16,7 @@ from wandb.integration.keras import WandbCallback
 
 from model.gru.gru_model import GRUModel
 from model.lstm.lstm_model import LSTMModel
+from model.vit_keras import vit
 
 warnings.filterwarnings('ignore')
 if platform.system() == 'Darwin':
@@ -110,11 +111,15 @@ if __name__=='__main__':
     parser.add_argument('-m', type=str, help='Model to be executed')
     parser.add_argument('-lr', type=float, help='learning rate')
     parser.add_argument('-b', type=int, help='batch size')
+    parser.add_argument('-nh', type=int, help='number-of-head')
+    parser.add_argument('-md', type=int, help='mlp-dimension')
     parser.add_argument('-ed', type=int, help='embedding dimension')
     parser.add_argument('-nl', type=int, help='num_layers')
     args = parser.parse_args()
     model_name = args.m
     batch_size = args.b
+    num_heads=args.nh
+    mlp_dim=args.md
     num_layers=args.nl
     hidden_size=args.ed
 
@@ -136,6 +141,19 @@ if __name__=='__main__':
     elif model_name == 'lstm_custom':
         lstm = LSTMModel(input_shape, num_classes)
         model = lstm.get_model_custom(input_shape, num_classes, num_layers, hidden_size, return_sequences=False)
+    elif model_name=='vit_tiny_custom':
+        model = vit.vit_tiny_custom(
+            input_shape=input_shape,
+            classes=num_classes,
+            activation='linear',
+            pretrained=True,
+            include_top=True,
+            pretrained_top=True,
+            num_heads=num_heads,
+            mlp_dim=mlp_dim,
+            num_layers=num_layers,
+            hidden_size=hidden_size
+        )
     model.summary()
     optimizer = tfa.optimizers.AdamW(
         learning_rate=learning_rate, weight_decay=weight_decay)
