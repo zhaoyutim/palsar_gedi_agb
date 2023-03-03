@@ -41,7 +41,7 @@ def get_dataset():
     validateset = h5py.File("africa-biomass-challenge/09072022_1154_val.h5", "r")
     testset = h5py.File("africa-biomass-challenge/09072022_1154_test.h5", "r")
     def feature_engineering(array):
-        dvi = array[:, [7], :, :] / array[:, [3], :, :]
+        dvi = array[:, [7], :, :] / (array[:, [3], :, :] + 1e6)
         ndvi = (array[:, [7], :, :] - array[:, [3], :, :]) / (array[:, [7], :, :] + array[:, [3], :, :] + 1e6)
         ndvi2 = (array[:, [8], :, :] - array[:, [3], :, :]) / (array[:, [8], :, :] + array[:, [3], :, :] + 1e6)
         gndvi = (array[:, [7], :, :] - array[:, [2], :, :]) / (array[:, [7], :, :] + array[:, [2], :, :] + 1e6)
