@@ -115,7 +115,7 @@ if __name__=='__main__':
             tf.keras.metrics.RootMeanSquaredError(name="rmse")
         ],
     )
-    checkpoint = ModelCheckpoint(os.path.join(root_path, 'abc_' + model_name + str(hidden_size) + '_' + str(num_layers)),
+    checkpoint = ModelCheckpoint(os.path.join(root_path.replace('africa-biomass-challenge', 'abc_challenge_models'), 'abc_' + model_name + str(hidden_size) + '_' + str(num_layers)),
                                  monitor="val_loss", mode="min", save_best_only=True, verbose=1)
     history = model.fit(
         x=train_images_norm,
@@ -126,9 +126,17 @@ if __name__=='__main__':
     )
     # model.save(os.path.join(root_path, 'proj3_' + model_name + str(hidden_size) + '_' + str(num_layers)))
 
-    model.load_weights(os.path.join(root_path, 'abc_' + model_name + str(hidden_size) + '_' + str(num_layers)))
+    model.load_weights(os.path.join(root_path.replace('africa-biomass-challenge', 'abc_challenge_models'), 'abc_' + model_name + str(hidden_size) + '_' + str(num_layers)))
+
+    score = model.evaluate(test_images_norm, test_biomasses, verbose=0)
+    print('Test loss:', score[0])
+    print('Test accuracy:', score[1])
+    wandb.run.log({'Test loss': score[0], 'Test accuracy': score[1]})
+
     pred_giz = model.predict(infer_images_norm)
     ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
-    preds = pd.DataFrame({'Target': pred_giz}).rename_axis('S2_idx').reset_index()
+    preds = pd.DataFrame({'Target': pred_giz[:,0]}).rename_axis('S2_idx').reset_index()
     preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
-    preds.to_csv('africa-biomass-challenge/biomass_predictions'+ model_name + str(hidden_size) + '_' + str(num_layers)+'.csv', index=False)
+    if not os.path.exists('africa-biomass-challenge/predictions'):
+        os.mkdir('africa-biomass-challenge/predictions')
+    preds.to_csv('africa-biomass-challenge/predictions/biomass_predictions'+ model_name + str(hidden_size) + '_' + str(num_layers)+'.csv', index=False)
