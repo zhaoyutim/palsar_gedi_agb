@@ -48,7 +48,8 @@ def get_dataset(channel_first=True):
         gndvi = (array[:, :, :, [7]] - array[:, :, :, [2]]) / (array[:, :, :, [7]] + array[:, :, :, [2]] + 1e6)
         ndi45 = (array[:, :, :, [4]] - array[:, :, :, [3]]) / (array[:, :, :, [4]] + array[:, :, :, [3]] + 1e6)
         ndre = (array[:, :, :, [7]] - array[:, :, :, [4]]) / (array[:, :, :, [7]] + array[:, :, :, [4]] + 1e6)
-        array = np.concatenate([array, scl, cloud, lat, lon, dvi, ndvi, ndvi2, gndvi, ndi45, ndre], axis=3)
+        array = np.concatenate([array, cloud, ndvi, ndvi2], axis=3)
+        array = np.where(scl!=4, 0, array)
         if channel_first:
             array = array.transpose(0, 3, 1, 2)
         return array
@@ -72,12 +73,12 @@ def get_dataset(channel_first=True):
     if not channel_first:
         MEAN = train_images.mean((0, 1, 2))
         STD = train_images.std((0, 1, 2))
-        train_images_norm = (train_images - MEAN[None, None, None, :]) / STD[None, None, None, :]
+        train_images_norm = (train_images[:,:,:,:12] - MEAN[None, None, None, :12]) / STD[None, None, None, :12]
         train_images_norm = patch_dividing(train_images_norm)
     else:
         MEAN = train_images.mean((0, 2, 3))
         STD = train_images.std((0, 2, 3))
-        train_images_norm = (train_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
+        train_images_norm = (train_images[:,:12,:,:] - MEAN[None, :12, None, None]) / STD[None, :12, None, None]
         train_images_norm = train_images_norm.reshape((train_images_norm.shape[0], train_images_norm.shape[1], -1))
 
     # validate
@@ -89,10 +90,10 @@ def get_dataset(channel_first=True):
     validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
     validate_images = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon)
     if not channel_first:
-        validate_images_norm = (validate_images - MEAN[None, None, None, :]) / STD[None, None, None, :]
+        validate_images_norm = (validate_images[:,:,:,:12] - MEAN[None, None, None, :12]) / STD[None, None, None, :12]
         validate_images_norm = patch_dividing(validate_images_norm)
     else:
-        validate_images_norm = (validate_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
+        validate_images_norm = (validate_images[:,:12,:,:] - MEAN[None, :12, None, None]) / STD[None, :12, None, None]
         validate_images_norm = validate_images_norm.reshape(
             (validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
 
@@ -106,10 +107,10 @@ def get_dataset(channel_first=True):
     test_biomasses = np.array(testset['agbd'], dtype=np.float32)
     test_images = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon)
     if not channel_first:
-        test_images_norm = (test_images - MEAN[None, None, None, :]) / STD[None, None, None, :]
+        test_images_norm = (test_images[:,:,:,:12] - MEAN[None, None, None, :12]) / STD[None, None, None, :12]
         test_images_norm = patch_dividing(test_images_norm)
     else:
-        test_images_norm = (test_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
+        test_images_norm = (test_images[:,:12,:,:] - MEAN[None, :12, None, None]) / STD[None, :12, None, None]
         test_images_norm = test_images_norm.reshape((test_images_norm.shape[0], test_images_norm.shape[1], -1))
 
     # infer
@@ -125,10 +126,10 @@ def get_dataset(channel_first=True):
     infer_lon = np.array(infer_lon["lon"])
     infer_images = feature_engineering(infer_images, infer_scl, infer_cloud, infer_lat, infer_lon)
     if not channel_first:
-        infer_images_norm = (infer_images - MEAN[None, None, None, :]) / STD[None, None, None, :]
+        infer_images_norm = (infer_images[:,:,:,:12] - MEAN[None, None, None, :12]) / STD[None, None, None, :12]
         infer_images_norm = patch_dividing(infer_images_norm)
     else:
-        infer_images_norm = (infer_images - MEAN[None, :, None, None]) / STD[None, :, None, None]
+        infer_images_norm = (infer_images[:,:12,:,:] - MEAN[None, :12, None, None]) / STD[None, :12, None, None]
         infer_images_norm = infer_images_norm.reshape((infer_images_norm.shape[0], infer_images_norm.shape[1], -1))
 
     return train_images_norm, train_biomasses, validate_images_norm, validate_biomasses, test_images_norm, test_biomasses, infer_images_norm
@@ -172,7 +173,7 @@ if __name__=='__main__':
         model = vit.vit_tiny_custom(
             input_shape=input_shape,
             classes=num_classes,
-            activation='linear',
+            activation='relu',
             pretrained=True,
             include_top=True,
             pretrained_top=True,
@@ -182,8 +183,7 @@ if __name__=='__main__':
             hidden_size=hidden_size
         )
     model.summary()
-    optimizer = tfa.optimizers.AdamW(
-        learning_rate=learning_rate, weight_decay=weight_decay)
+    optimizer = tfa.optimizers.SGD(learning_rate=learning_rate)
     model.compile(
         optimizer=optimizer,
         loss=tf.keras.losses.MeanSquaredError(),
