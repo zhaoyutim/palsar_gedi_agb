@@ -51,16 +51,19 @@ def get_dataset(channel_first=True):
         MEAN = array.mean((0, 1, 2))
         STD = array.std((0, 1, 2))
         array = (array[:, :, :, :12] - MEAN[None, None, None, :12]) / STD[None, None, None, :12]
-        array = np.concatenate([array, cloud, ndvi, ndvi2], axis=3)
+        array = np.concatenate([array, cloud, dvi, gndvi, ndi45, ndre, ndvi, ndvi2, scl, lat, lon], axis=3)
         array = np.where(scl!=4, 0, array)
+        array = array[:,4:13, 4:13, :]
+        # array = np.concatenate([array[:, :, :, [10]],
+        #                        array[:, :, :, [11]]], axis=3)
         if channel_first:
             array = array.transpose(0, 3, 1, 2)
         return array
     def patch_dividing(array):
         patches = tf.image.extract_patches(
             images=array,
-            sizes=[1, 5, 5, 1],
-            strides=[1, 5, 5, 1],
+            sizes=[1, 3, 3, 1],
+            strides=[1, 3, 3, 1],
             rates=[1, 1, 1, 1],
             padding="VALID",
         )
@@ -72,7 +75,7 @@ def get_dataset(channel_first=True):
     train_lat = np.array(trainset['lat'], dtype=np.float64)
     train_lon = np.array(trainset['lon'], dtype=np.float64)
     train_biomasses = np.array(trainset['agbd'], dtype=np.float64)
-    train_biomasses_norm = (train_biomasses-train_biomasses.mean())/(train_biomasses.std())
+    train_biomasses_norm = train_biomasses
     train_images_norm = feature_engineering(train_images, train_scl, train_cloud, train_lat, train_lon, channel_first)
     if not channel_first:
         train_images_norm = patch_dividing(train_images_norm)
@@ -86,7 +89,7 @@ def get_dataset(channel_first=True):
     validate_lat = np.array(validateset['lat'], dtype=np.float64)
     validate_lon = np.array(validateset['lon'], dtype=np.float64)
     validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
-    validate_biomasses_norm = (validate_biomasses - train_biomasses.mean()) / (train_biomasses.std())
+    validate_biomasses_norm = validate_biomasses
     validate_images_norm = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon, channel_first)
     if not channel_first:
         validate_images_norm = patch_dividing(validate_images_norm)
@@ -101,7 +104,7 @@ def get_dataset(channel_first=True):
     test_lat = np.array(testset['lat'], dtype=np.float64)
     test_lon = np.array(testset['lon'], dtype=np.float64)
     test_biomasses = np.array(testset['agbd'], dtype=np.float32)
-    test_biomasses_norm = (test_biomasses - train_biomasses.mean()) / (train_biomasses.std())
+    test_biomasses_norm = test_biomasses
     test_images_norm = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon, channel_first)
     if not channel_first:
         test_images_norm = patch_dividing(test_images_norm)
@@ -126,7 +129,7 @@ def get_dataset(channel_first=True):
         infer_images_norm = infer_images_norm.reshape((infer_images_norm.shape[0], infer_images_norm.shape[1], -1))
 
     return train_images_norm, train_biomasses_norm, validate_images_norm, validate_biomasses_norm, test_images_norm, \
-           test_biomasses_norm, infer_images_norm, train_biomasses.mean(), train_biomasses.std()
+           test_biomasses_norm, infer_images_norm
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -150,10 +153,10 @@ if __name__=='__main__':
     lr = args.lr
     learning_rate = lr
     weight_decay = lr/10
-    MAX_EPOCHS = 50
+    MAX_EPOCHS = 100
 
     train_images_norm, train_biomasses_norm, validate_images_norm, validate_biomasses_norm, test_images_norm, \
-    test_biomasses_norm, infer_images_norm, train_biomasses_mean, train_biomasses_std = get_dataset(channel_first=False)
+    test_biomasses_norm, infer_images_norm = get_dataset(channel_first=False)
     input_shape = (train_images_norm.shape[1], train_images_norm.shape[2])
     wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
@@ -168,7 +171,7 @@ if __name__=='__main__':
         model = vit.vit_tiny_custom(
             input_shape=input_shape,
             classes=num_classes,
-            activation='relu',
+            activation='linear',
             pretrained=True,
             include_top=True,
             pretrained_top=True,
@@ -178,7 +181,7 @@ if __name__=='__main__':
             hidden_size=hidden_size
         )
     model.summary()
-    optimizer = tf.optimizers.SGD(learning_rate=learning_rate)
+    optimizer = tf.optimizers.Adam(learning_rate=learning_rate)
     model.compile(
         optimizer=optimizer,
         loss=tf.keras.losses.MeanSquaredError(),
@@ -206,7 +209,7 @@ if __name__=='__main__':
 
     pred_giz = model.predict(infer_images_norm)
     ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
-    preds = pd.DataFrame({'Target': pred_giz[:,0]*train_biomasses_std+train_biomasses_mean}).rename_axis('S2_idx').reset_index()
+    preds = pd.DataFrame({'Target': pred_giz[:,0]}).rename_axis('S2_idx').reset_index()
     preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
     if not os.path.exists('africa-biomass-challenge/predictions'):
         os.mkdir('africa-biomass-challenge/predictions')
