@@ -213,7 +213,7 @@ if __name__=='__main__':
 
     pred_giz = model.predict(infer_images_norm)
     ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
-    preds = pd.DataFrame({'Target': pred_giz[:,0]}).rename_axis('S2_idx').reset_index()
+    preds = pd.DataFrame({'Target': pred_giz[:,0]*10}).rename_axis('S2_idx').reset_index()
     preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
     if not os.path.exists('africa-biomass-challenge/predictions'):
         os.mkdir('africa-biomass-challenge/predictions')
