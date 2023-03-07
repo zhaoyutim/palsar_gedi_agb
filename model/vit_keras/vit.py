@@ -59,6 +59,8 @@ def build_model(
     input_shape: tuple,
     num_layers: int,
     hidden_size: int,
+    patch_size: int,
+    num_patches: int,
     num_heads: int,
     name: str,
     mlp_dim: int,
@@ -89,8 +91,8 @@ def build_model(
     """
     x = tf.keras.layers.Input(shape=input_shape)
     proj = tf.keras.layers.Dense(units=hidden_size)(x)
-    y = PatchEncoder(input_shape[0], hidden_size)(x)
-    y = y + proj
+    patch_encoder = PatchEncoder(patch_size=patch_size, num_patches=num_patches, projection_dim=hidden_size)
+    y = patch_encoder(x)
     for n in range(num_layers):
         y, _ = layers.TransformerBlock(
             num_heads=num_heads,
@@ -193,6 +195,8 @@ def vit_tiny(
 def vit_tiny_custom(
         input_shape = (10,45),
         classes=2,
+        patch_size=3,
+        num_patches=25,
         activation="linear",
         include_top=True,
         pretrained=True,
@@ -215,6 +219,8 @@ def vit_tiny_custom(
         name="vit-ti",
         input_shape=input_shape,
         classes=classes,
+        patch_size=3,
+        num_patches=25,
         activation=activation,
         include_top=include_top,
         representation_size=768 if weights == "imagenet21k" else None,

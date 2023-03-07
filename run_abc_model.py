@@ -11,6 +11,7 @@ import warnings
 import wandb
 from tensorflow.python.keras.callbacks import ModelCheckpoint
 import tensorflow as tf
+import tensorflow.keras.backend as K
 import tensorflow_addons as tfa
 from wandb.integration.keras import WandbCallback
 
@@ -52,22 +53,13 @@ def get_dataset(channel_first=True):
         STD = array.std((0, 1, 2))
         array = (array[:, :, :, :12] - MEAN[None, None, None, :12]) / STD[None, None, None, :12]
         array = np.concatenate([array, cloud, dvi, gndvi, ndi45, ndre, ndvi, ndvi2, scl, lat, lon], axis=3)
-        array = np.where(scl!=4, 0, array)
-        array = array[:,4:13, 4:13, :]
+        # array = np.where(scl!=4, 0, array)
+        # array = array[:,4:13, 4:13, :]
         # array = np.concatenate([array[:, :, :, [10]],
         #                        array[:, :, :, [11]]], axis=3)
         if channel_first:
             array = array.transpose(0, 3, 1, 2)
         return array
-    def patch_dividing(array):
-        patches = tf.image.extract_patches(
-            images=array,
-            sizes=[1, 3, 3, 1],
-            strides=[1, 3, 3, 1],
-            rates=[1, 1, 1, 1],
-            padding="VALID",
-        )
-        return patches.numpy().reshape(patches.shape[0], -1, patches.shape[3])
     # train
     train_images = np.array(trainset['images'], dtype=np.float64)
     train_scl = np.array(trainset['scl'], dtype=np.float64)
@@ -78,7 +70,7 @@ def get_dataset(channel_first=True):
     train_biomasses_norm = train_biomasses
     train_images_norm = feature_engineering(train_images, train_scl, train_cloud, train_lat, train_lon, channel_first)
     if not channel_first:
-        train_images_norm = patch_dividing(train_images_norm)
+        train_images_norm = train_images_norm
     else:
         train_images_norm = train_images_norm.reshape((train_images_norm.shape[0], train_images_norm.shape[1], -1))
 
@@ -92,7 +84,7 @@ def get_dataset(channel_first=True):
     validate_biomasses_norm = validate_biomasses
     validate_images_norm = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon, channel_first)
     if not channel_first:
-        validate_images_norm = patch_dividing(validate_images_norm)
+        validate_images_norm = validate_images_norm
     else:
         validate_images_norm = validate_images.reshape((validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
 
@@ -107,7 +99,7 @@ def get_dataset(channel_first=True):
     test_biomasses_norm = test_biomasses
     test_images_norm = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon, channel_first)
     if not channel_first:
-        test_images_norm = patch_dividing(test_images_norm)
+        test_images_norm = test_images_norm
     else:
         test_images_norm = test_images_norm.reshape((test_images_norm.shape[0], test_images_norm.shape[1], -1))
 
@@ -124,7 +116,7 @@ def get_dataset(channel_first=True):
     infer_lon = np.array(infer_lon["lon"])
     infer_images_norm = feature_engineering(infer_images, infer_scl, infer_cloud, infer_lat, infer_lon, channel_first)
     if not channel_first:
-        infer_images_norm = patch_dividing(infer_images_norm)
+        infer_images_norm = infer_images_norm
     else:
         infer_images_norm = infer_images_norm.reshape((infer_images_norm.shape[0], infer_images_norm.shape[1], -1))
 
@@ -157,7 +149,10 @@ if __name__=='__main__':
 
     train_images_norm, train_biomasses_norm, validate_images_norm, validate_biomasses_norm, test_images_norm, \
     test_biomasses_norm, infer_images_norm = get_dataset(channel_first=False)
-    input_shape = (train_images_norm.shape[1], train_images_norm.shape[2])
+
+    train_images_norm = np.concatenate([train_images_norm, test_images_norm], axis=0)
+    train_biomasses_norm = np.concatenate([train_biomasses_norm, test_biomasses_norm], axis=0)
+    input_shape = (train_images_norm.shape[1], train_images_norm.shape[2], train_images_norm.shape[3])
     wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
 
@@ -170,6 +165,8 @@ if __name__=='__main__':
     elif model_name=='vit_tiny_custom':
         model = vit.vit_tiny_custom(
             input_shape=input_shape,
+            patch_size=3,
+            num_patches=train_images_norm.shape[2]//3**2,
             classes=num_classes,
             activation='linear',
             pretrained=True,
@@ -182,9 +179,13 @@ if __name__=='__main__':
         )
     model.summary()
     optimizer = tf.optimizers.Adam(learning_rate=learning_rate)
+
+    def root_mean_squared_log_error(y_true, y_pred):
+        return K.sqrt(K.mean(K.square(y_pred - y_true)))
+
     model.compile(
         optimizer=optimizer,
-        loss=tf.keras.losses.MeanSquaredError(),
+        loss=root_mean_squared_log_error,
         metrics=[
             tf.keras.metrics.RootMeanSquaredError(name="rmse")
         ],
@@ -202,10 +203,10 @@ if __name__=='__main__':
 
     model.load_weights(os.path.join(root_path.replace('africa-biomass-challenge', 'abc_challenge_models'), 'abc_' + 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)))
 
-    score = model.evaluate(test_images_norm, test_biomasses_norm, verbose=0)
-    print('Test loss:', score[0])
-    print('Test accuracy:', score[1])
-    wandb.run.log({'Test loss': score[0], 'Test accuracy': score[1]})
+    # score = model.evaluate(test_images_norm, test_biomasses_norm, verbose=0)
+    # print('Test loss:', score[0])
+    # print('Test accuracy:', score[1])
+    # wandb.run.log({'Test loss': score[0], 'Test accuracy': score[1]})
 
     pred_giz = model.predict(infer_images_norm)
     ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')

@@ -85,7 +85,6 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         self.key_dense = tf.keras.layers.Dense(hidden_size, name="key")
         self.value_dense = tf.keras.layers.Dense(hidden_size, name="value")
         self.combine_heads = tf.keras.layers.Dense(hidden_size, name="out")
-        self.softmax = tf.keras.layers.Softmax()
     # pylint: disable=no-self-use
     def attention(self, query, key, value):
         score = tf.matmul(query, key, transpose_b=True)
@@ -94,10 +93,6 @@ class MultiHeadSelfAttention(tf.keras.layers.Layer):
         weights = tf.nn.softmax(scaled_score, axis=-1)
         output = tf.matmul(weights, value)
         return output, weights
-
-    def _masked_softmax(self, attention_scores, attention_mask=None):
-        return self.softmax(inputs=attention_scores, mask=attention_mask)
-
     def separate_heads(self, x, batch_size):
         x = tf.reshape(x, (batch_size, -1, self.num_heads, self.projection_dim))
         return tf.transpose(x, perm=[0, 2, 1, 3])
