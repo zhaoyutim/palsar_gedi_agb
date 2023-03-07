@@ -67,10 +67,11 @@ def get_dataset(channel_first=True):
     train_lat = np.array(trainset['lat'], dtype=np.float64)
     train_lon = np.array(trainset['lon'], dtype=np.float64)
     train_biomasses = np.array(trainset['agbd'], dtype=np.float64)
-    train_biomasses_norm = train_biomasses
+    train_biomasses_norm = train_biomasses/10
     train_images_norm = feature_engineering(train_images, train_scl, train_cloud, train_lat, train_lon, channel_first)
     if not channel_first:
-        train_images_norm = train_images_norm
+        train_images_norm = train_images_norm[train_biomasses_norm<20]
+        train_biomasses_norm = train_biomasses_norm[train_biomasses_norm<20]
     else:
         train_images_norm = train_images_norm.reshape((train_images_norm.shape[0], train_images_norm.shape[1], -1))
 
@@ -81,10 +82,11 @@ def get_dataset(channel_first=True):
     validate_lat = np.array(validateset['lat'], dtype=np.float64)
     validate_lon = np.array(validateset['lon'], dtype=np.float64)
     validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
-    validate_biomasses_norm = validate_biomasses
+    validate_biomasses_norm = validate_biomasses/10
     validate_images_norm = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon, channel_first)
     if not channel_first:
-        validate_images_norm = validate_images_norm
+        validate_images_norm = validate_images_norm[validate_biomasses_norm<20]
+        validate_biomasses_norm = validate_biomasses_norm[validate_biomasses_norm<20]
     else:
         validate_images_norm = validate_images.reshape((validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
 
@@ -96,10 +98,11 @@ def get_dataset(channel_first=True):
     test_lat = np.array(testset['lat'], dtype=np.float64)
     test_lon = np.array(testset['lon'], dtype=np.float64)
     test_biomasses = np.array(testset['agbd'], dtype=np.float32)
-    test_biomasses_norm = test_biomasses
+    test_biomasses_norm = test_biomasses/10
     test_images_norm = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon, channel_first)
     if not channel_first:
-        test_images_norm = test_images_norm
+        test_images_norm = test_images_norm[test_biomasses_norm<20]
+        test_biomasses_norm = test_biomasses_norm[test_biomasses_norm<20]
     else:
         test_images_norm = test_images_norm.reshape((test_images_norm.shape[0], test_images_norm.shape[1], -1))
 

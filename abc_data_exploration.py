@@ -1,9 +1,17 @@
+import glob
+import os
+import subprocess
+import ee
 import h5py
 import numpy as np
 import matplotlib.pyplot as plt
 import pandas as pd
+import rasterio
+from google.cloud import storage
 from scipy.stats import stats
-
+from osgeo import gdal
+from osgeo import ogr
+from osgeo import osr
 
 def get_dataset(channel_first=False):
     trainset = h5py.File("africa-biomass-challenge/09072022_1154_train.h5", "r")
@@ -56,30 +64,120 @@ def get_dataset(channel_first=False):
     df = pd.DataFrame({'corr_max':corr_max, 'corr_min':corr_min})
     df.head(5)
     df.to_csv('all_bands_10x10.csv')
+def write_tiff(file_path, arr, profile):
+    with rasterio.Env():
+        with rasterio.open(file_path, 'w', **profile) as dst:
+            dst.write(arr.astype(rasterio.float32))
 
-    # train_biomasses_norm = (train_biomasses-train_biomasses.mean())/(train_biomasses.std())
+def read_tiff(file_path):
+    with rasterio.open(file_path, 'r') as reader:
+        profile = reader.profile
+        tif_as_array = reader.read()
+    return tif_as_array, profile
 
-    #
-    # # validate
-    # validate_images = np.array(validateset['images'], dtype=np.float64)
-    # validate_scl = np.array(validateset['scl'], dtype=np.float64)
-    # validate_cloud = np.array(validateset['cloud'], dtype=np.float64)
-    # validate_lat = np.array(validateset['lat'], dtype=np.float64)
-    # validate_lon = np.array(validateset['lon'], dtype=np.float64)
-    # validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
-    # validate_biomasses_norm = (validate_biomasses - train_biomasses.mean()) / (train_biomasses.std())
-    # validate_images_norm = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon, channel_first)
-    #
-    #
-    # # test
-    # test_images = np.array(testset['images'], dtype=np.float32)
-    # test_scl = np.array(testset['scl'], dtype=np.float64)
-    # test_cloud = np.array(testset['cloud'], dtype=np.float64)
-    # test_lat = np.array(testset['lat'], dtype=np.float64)
-    # test_lon = np.array(testset['lon'], dtype=np.float64)
-    # test_biomasses = np.array(testset['agbd'], dtype=np.float32)
-    # test_biomasses_norm = (test_biomasses - train_biomasses.mean()) / (train_biomasses.std())
-    # test_images_norm = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon, channel_first)
+def upload_to_gcloud(file):
+    print('Upload to gcloud')
+    file_name = file.split('/')[-1]
+    storage_client = storage.Client()
+    bucket = storage_client.bucket('ai4wildfire')
+    upload_cmd = 'gsutil cp ' + file + ' gs://ai4wildfire/abc_chan/' + file_name
+    print(upload_cmd)
+    os.system(upload_cmd)
+    print('finish uploading' + file)
+
+def upload_to_gee(file):
+    print('start uploading to gee')
+    file_name = file.split('/')[-1]
+    cmd = 'earthengine upload image --asset_id=users/zhaoyutim/abc_challenge_label/' + \
+          file.split('/')[-1].split('.')[0] + ' --pyramiding_policy=sample gs://ai4wildfire/abc_chan/' + file_name
+    subprocess.call(cmd.split())
+def get_infer_tif():
+    infer_images = h5py.File("africa-biomass-challenge/images_test.h5", "r")
+    infer_images = np.array(infer_images["images"])
+    infer_scl = h5py.File("africa-biomass-challenge/scl_test.h5", "r")
+    infer_scl = np.array(infer_scl["scl"])
+    infer_cloud = h5py.File("africa-biomass-challenge/cloud_test.h5", "r")
+    infer_cloud = np.array(infer_cloud["cloud"])
+    infer_lat = h5py.File("africa-biomass-challenge/lat_test.h5", "r")
+    infer_lat = np.array(infer_lat["lat"])
+    infer_lon = h5py.File("africa-biomass-challenge/lon_test.h5", "r")
+    infer_lon = np.array(infer_lon["lon"])
+
+    for i in range(infer_images.shape[0]):
+        output_array = infer_scl[i,:,:,0]
+        lat = infer_lat[i,:,:,:]
+        lon = infer_lon[i,:,:,:]
+        nx = output_array.shape[0]
+        ny = output_array.shape[0]
+        xmin, ymin, xmax, ymax = [lon.min(), lat.min(), lon.max(), lat.max()]
+        xres = (xmax - xmin) / float(nx)
+        yres = (ymax - ymin) / float(ny)
+        geotransform = (xmin, xres, 0, ymax, 0, -yres)
+
+        ring = ogr.Geometry(ogr.wkbLinearRing)
+        ring.AddPoint(float(xmin), float(ymin))
+        ring.AddPoint(float(xmin), float(ymax))
+        ring.AddPoint(float(xmax), float(ymax))
+        ring.AddPoint(float(xmax), float(ymin))
+
+        poly = ogr.Geometry(ogr.wkbPolygon)
+        poly.AddGeometry(ring)
+        driver = ogr.GetDriverByName("ESRI Shapefile")
+        ds = driver.CreateDataSource('polygon'+str(i)+'.shp')
+        srs = osr.SpatialReference()
+        srs.ImportFromEPSG(4326)
+        layer = ds.CreateLayer("polygon", srs, ogr.wkbPolygon)
+        idField = ogr.FieldDefn("id", ogr.OFTInteger)
+        layer.CreateField(idField)
+        featureDefn = layer.GetLayerDefn()
+        feature = ogr.Feature(featureDefn)
+        feature.SetGeometry(poly)
+        feature.SetField("id", i)
+        layer.CreateFeature(feature)
+        feature = None
+        ds = None
+def export_label():
+    ee.Initialize()
+    table = ee.FeatureCollection("projects/grand-drive-285514/assets/abc_polygon")
+    gedi4 = ee.ImageCollection("LARSE/GEDI/GEDI04_A_002_MONTHLY").select('agbd').mosaic()
+    biomasscci = ee.ImageCollection("projects/ee-zhaoyutim/assets/biomasscci2018").mosaic()
+    polygons = table.toList(90)
+    for i in range(90):
+        polygon = ee.Feature(polygons.get(i))
+        output = ee.Image([biomasscci, gedi4])
+        dir = 'abc_label' + '/' + str(i)
+        image_task = ee.batch.Export.image.toCloudStorage(
+            image=output.toFloat(),
+            description='Image Export:' + 'id_' + str(i),
+            fileNamePrefix=dir,
+            bucket='ai4wildfire',
+            scale=20,
+            maxPixels=1e11,
+            region=polygon.geometry(),
+        )
+        image_task.start()
+        print('Start with image task (id: {}).'.format(i))
+def get_fake_label():
+    fake_label = np.zeros(90)
+    file_list = glob.glob('/Users/zhaoyu/PycharmProjects/palsar_gedi_agb/fake_labels/*.tif')
+    for i, file in enumerate(file_list):
+        array, _ = read_tiff(file)
+        fake_label[i] = np.nanmean(array[1, :, :])
+    ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
+    fake_label = pd.DataFrame({'Target': fake_label}).rename_axis('S2_idx').reset_index()
+    fake_label = ID_S2_pair.merge(fake_label, on='S2_idx').drop(columns=['S2_idx'])
+
+    pred = pd.read_csv('africa-biomass-challenge/predictions/biomass_predictionsvit_tiny_customnum_heads_3num_layers_4mlp_dim_512hidden_size_192batchsize_128.csv')
+    import tensorflow as tf
+    x = pred.merge(fake_label, on='ID').rename_axis('asd')
+    x.Target_y.fillna(x.Target_x, inplace=True)
+    x = x.drop(['Target_x'], axis=1).rename(columns={'Target_y':'Target'}).drop(columns=['asd'])
+    x.to_csv('fake_label.csv')
+
 
 if __name__=='__main__':
-    get_dataset()
+    get_fake_label()
+    # file_list = glob.glob('/Users/zhaoyu/PycharmProjects/palsar_gedi_agb/label/*.tif')
+    # for file in file_list:
+    #     upload_to_gcloud(file)
+        # upload_to_gee(file)
