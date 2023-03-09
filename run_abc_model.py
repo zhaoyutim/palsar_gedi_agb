@@ -69,10 +69,9 @@ def get_dataset(channel_first=True):
     train_biomasses = np.array(trainset['agbd'], dtype=np.float64)
     train_biomasses_norm = train_biomasses
     train_images_norm = feature_engineering(train_images, train_scl, train_cloud, train_lat, train_lon, channel_first)
-    if not channel_first:
-        train_images_norm = train_images_norm[np.logical_and(train_biomasses_norm<=110,train_biomasses_norm>90)]
-        train_biomasses_norm = train_biomasses_norm[np.logical_and(train_biomasses_norm<=110,train_biomasses_norm>90)]
-    else:
+    train_images_norm = train_images_norm[np.logical_and(train_biomasses_norm <= 110, train_biomasses_norm > 90)]
+    train_biomasses_norm = train_biomasses_norm[np.logical_and(train_biomasses_norm <= 110, train_biomasses_norm > 90)]
+    if channel_first:
         train_images_norm = train_images_norm.reshape((train_images_norm.shape[0], train_images_norm.shape[1], -1))
 
     # validate
@@ -84,11 +83,12 @@ def get_dataset(channel_first=True):
     validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
     validate_biomasses_norm = validate_biomasses
     validate_images_norm = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon, channel_first)
-    if not channel_first:
-        validate_images_norm = validate_images_norm[np.logical_and(validate_biomasses_norm<=110,validate_biomasses_norm>90)]
-        validate_biomasses_norm = validate_biomasses_norm[np.logical_and(validate_biomasses_norm<=110,validate_biomasses_norm>90)]
-    else:
-        validate_images_norm = validate_images.reshape((validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
+    validate_images_norm = validate_images_norm[
+        np.logical_and(validate_biomasses_norm <= 110, validate_biomasses_norm > 90)]
+    validate_biomasses_norm = validate_biomasses_norm[
+        np.logical_and(validate_biomasses_norm <= 110, validate_biomasses_norm > 90)]
+    if channel_first:
+        validate_images_norm = validate_images_norm.reshape((validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
 
 
     # test
@@ -100,10 +100,9 @@ def get_dataset(channel_first=True):
     test_biomasses = np.array(testset['agbd'], dtype=np.float32)
     test_biomasses_norm = test_biomasses
     test_images_norm = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon, channel_first)
-    if not channel_first:
-        test_images_norm = test_images_norm[np.logical_and(test_biomasses_norm<=110,test_biomasses_norm>90)]
-        test_biomasses_norm = test_biomasses_norm[np.logical_and(test_biomasses_norm<=110,test_biomasses_norm>90)]
-    else:
+    test_images_norm = test_images_norm[np.logical_and(test_biomasses_norm <= 110, test_biomasses_norm > 90)]
+    test_biomasses_norm = test_biomasses_norm[np.logical_and(test_biomasses_norm <= 110, test_biomasses_norm > 90)]
+    if channel_first:
         test_images_norm = test_images_norm.reshape((test_images_norm.shape[0], test_images_norm.shape[1], -1))
 
     # infer
@@ -149,13 +148,17 @@ if __name__=='__main__':
     learning_rate = lr
     weight_decay = lr/10
     MAX_EPOCHS = 100
+    channel_first = True
 
     train_images_norm, train_biomasses_norm, validate_images_norm, validate_biomasses_norm, test_images_norm, \
-    test_biomasses_norm, infer_images_norm = get_dataset(channel_first=False)
+    test_biomasses_norm, infer_images_norm = get_dataset(channel_first=channel_first)
 
     train_images_norm = np.concatenate([train_images_norm, test_images_norm], axis=0)
     train_biomasses_norm = np.concatenate([train_biomasses_norm, test_biomasses_norm], axis=0)
-    input_shape = (train_images_norm.shape[1], train_images_norm.shape[2], train_images_norm.shape[3])
+    if not channel_first:
+        input_shape = (train_images_norm.shape[1], train_images_norm.shape[2], train_images_norm.shape[3])
+    else:
+        input_shape = (train_images_norm.shape[1], train_images_norm.shape[2])
     wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
 
