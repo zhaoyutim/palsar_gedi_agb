@@ -69,8 +69,8 @@ def get_dataset(channel_first=True):
     train_biomasses = np.array(trainset['agbd'], dtype=np.float64)
     train_biomasses_norm = train_biomasses
     train_images_norm = feature_engineering(train_images, train_scl, train_cloud, train_lat, train_lon, channel_first)
-    train_images_norm = train_images_norm[np.logical_and(train_biomasses_norm <= 110, train_biomasses_norm > 90)]
-    train_biomasses_norm = train_biomasses_norm[np.logical_and(train_biomasses_norm <= 110, train_biomasses_norm > 90)]
+    train_images_norm = train_images_norm[np.logical_and(train_biomasses_norm <= 150, train_biomasses_norm > 50)]
+    train_biomasses_norm = train_biomasses_norm[np.logical_and(train_biomasses_norm <= 150, train_biomasses_norm > 50)]
     if channel_first:
         train_images_norm = train_images_norm.reshape((train_images_norm.shape[0], train_images_norm.shape[1], -1))
 
@@ -84,9 +84,9 @@ def get_dataset(channel_first=True):
     validate_biomasses_norm = validate_biomasses
     validate_images_norm = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon, channel_first)
     validate_images_norm = validate_images_norm[
-        np.logical_and(validate_biomasses_norm <= 110, validate_biomasses_norm > 90)]
+        np.logical_and(validate_biomasses_norm <= 150, validate_biomasses_norm > 50)]
     validate_biomasses_norm = validate_biomasses_norm[
-        np.logical_and(validate_biomasses_norm <= 110, validate_biomasses_norm > 90)]
+        np.logical_and(validate_biomasses_norm <= 150, validate_biomasses_norm > 50)]
     if channel_first:
         validate_images_norm = validate_images_norm.reshape((validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
 
@@ -100,8 +100,8 @@ def get_dataset(channel_first=True):
     test_biomasses = np.array(testset['agbd'], dtype=np.float32)
     test_biomasses_norm = test_biomasses
     test_images_norm = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon, channel_first)
-    test_images_norm = test_images_norm[np.logical_and(test_biomasses_norm <= 110, test_biomasses_norm > 90)]
-    test_biomasses_norm = test_biomasses_norm[np.logical_and(test_biomasses_norm <= 110, test_biomasses_norm > 90)]
+    test_images_norm = test_images_norm[np.logical_and(test_biomasses_norm <= 150, test_biomasses_norm > 50)]
+    test_biomasses_norm = test_biomasses_norm[np.logical_and(test_biomasses_norm <= 150, test_biomasses_norm > 50)]
     if channel_first:
         test_images_norm = test_images_norm.reshape((test_images_norm.shape[0], test_images_norm.shape[1], -1))
 
