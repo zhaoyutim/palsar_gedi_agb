@@ -8,6 +8,8 @@ import pandas as pd
 import numpy as np
 import warnings
 
+from sklearn.model_selection import KFold
+
 import wandb
 from tensorflow.python.keras.callbacks import ModelCheckpoint
 import tensorflow as tf
@@ -61,49 +63,18 @@ def get_dataset(channel_first=True):
             array = array.transpose(0, 3, 1, 2)
         return array
     # train
-    train_images = np.array(trainset['images'], dtype=np.float64)
-    train_scl = np.array(trainset['scl'], dtype=np.float64)
-    train_cloud = np.array(trainset['cloud'], dtype=np.float64)
-    train_lat = np.array(trainset['lat'], dtype=np.float64)
-    train_lon = np.array(trainset['lon'], dtype=np.float64)
-    train_biomasses = np.array(trainset['agbd'], dtype=np.float64)
-    train_biomasses_norm = train_biomasses
+    train_images = np.concatenate([np.array(trainset['images'], dtype=np.float64), np.array(validateset['images'], dtype=np.float64), np.array(testset['images'], dtype=np.float64)], axis=0)
+    train_scl = np.concatenate([np.array(trainset['scl'], dtype=np.float64), np.array(validateset['scl'], dtype=np.float64), np.array(testset['scl'], dtype=np.float64)], axis=0)
+    train_cloud = np.concatenate([np.array(trainset['cloud'], dtype=np.float64), np.array(validateset['cloud'], dtype=np.float64), np.array(testset['cloud'], dtype=np.float64)], axis=0)
+    train_lat = np.concatenate([np.array(trainset['lat'], dtype=np.float64), np.array(validateset['lat'], dtype=np.float64), np.array(testset['lat'], dtype=np.float64)], axis=0)
+    train_lon = np.concatenate([np.array(trainset['lon'], dtype=np.float64), np.array(validateset['lon'], dtype=np.float64), np.array(testset['lon'], dtype=np.float64)], axis=0)
+    train_biomasses_norm = np.concatenate([np.array(trainset['agbd'], dtype=np.float64), np.array(validateset['agbd'], dtype=np.float64), np.array(testset['agbd'], dtype=np.float64)], axis=0)
     train_images_norm = feature_engineering(train_images, train_scl, train_cloud, train_lat, train_lon, channel_first)
+    # Filter
     train_images_norm = train_images_norm[np.logical_and(train_biomasses_norm <= 150, train_biomasses_norm > 50)]
     train_biomasses_norm = train_biomasses_norm[np.logical_and(train_biomasses_norm <= 150, train_biomasses_norm > 50)]
     if channel_first:
         train_images_norm = train_images_norm.reshape((train_images_norm.shape[0], train_images_norm.shape[1], -1))
-
-    # validate
-    validate_images = np.array(validateset['images'], dtype=np.float64)
-    validate_scl = np.array(validateset['scl'], dtype=np.float64)
-    validate_cloud = np.array(validateset['cloud'], dtype=np.float64)
-    validate_lat = np.array(validateset['lat'], dtype=np.float64)
-    validate_lon = np.array(validateset['lon'], dtype=np.float64)
-    validate_biomasses = np.array(validateset['agbd'], dtype=np.float64)
-    validate_biomasses_norm = validate_biomasses
-    validate_images_norm = feature_engineering(validate_images, validate_scl, validate_cloud, validate_lat, validate_lon, channel_first)
-    validate_images_norm = validate_images_norm[
-        np.logical_and(validate_biomasses_norm <= 150, validate_biomasses_norm > 50)]
-    validate_biomasses_norm = validate_biomasses_norm[
-        np.logical_and(validate_biomasses_norm <= 150, validate_biomasses_norm > 50)]
-    if channel_first:
-        validate_images_norm = validate_images_norm.reshape((validate_images_norm.shape[0], validate_images_norm.shape[1], -1))
-
-
-    # test
-    test_images = np.array(testset['images'], dtype=np.float32)
-    test_scl = np.array(testset['scl'], dtype=np.float64)
-    test_cloud = np.array(testset['cloud'], dtype=np.float64)
-    test_lat = np.array(testset['lat'], dtype=np.float64)
-    test_lon = np.array(testset['lon'], dtype=np.float64)
-    test_biomasses = np.array(testset['agbd'], dtype=np.float32)
-    test_biomasses_norm = test_biomasses
-    test_images_norm = feature_engineering(test_images, test_scl, test_cloud, test_lat, test_lon, channel_first)
-    test_images_norm = test_images_norm[np.logical_and(test_biomasses_norm <= 150, test_biomasses_norm > 50)]
-    test_biomasses_norm = test_biomasses_norm[np.logical_and(test_biomasses_norm <= 150, test_biomasses_norm > 50)]
-    if channel_first:
-        test_images_norm = test_images_norm.reshape((test_images_norm.shape[0], test_images_norm.shape[1], -1))
 
     # infer
     infer_images = h5py.File("africa-biomass-challenge/images_test.h5", "r")
@@ -122,8 +93,17 @@ def get_dataset(channel_first=True):
     else:
         infer_images_norm = infer_images_norm.reshape((infer_images_norm.shape[0], infer_images_norm.shape[1], -1))
 
-    return train_images_norm, train_biomasses_norm, validate_images_norm, validate_biomasses_norm, test_images_norm, \
-           test_biomasses_norm, infer_images_norm
+    def make_dataset(X_data, y_data, n_splits):
+
+        def gen():
+            for train_index, test_index in KFold(n_splits).split(X_data):
+                X_train, X_val = X_data[train_index], X_data[test_index]
+                y_train, y_val = y_data[train_index], y_data[test_index]
+                yield X_train, y_train, X_val, y_val
+
+        return tf.data.Dataset.from_generator(gen, (tf.float64, tf.float64, tf.float64, tf.float64))
+    dataset = make_dataset(train_images_norm, train_biomasses_norm, 5)
+    return dataset, infer_images_norm
 
 if __name__=='__main__':
     parser = argparse.ArgumentParser(description='Process some integers.')
@@ -147,77 +127,72 @@ if __name__=='__main__':
     lr = args.lr
     learning_rate = lr
     weight_decay = lr/10
-    MAX_EPOCHS = 100
+    MAX_EPOCHS = 50
     channel_first = True
 
-    train_images_norm, train_biomasses_norm, validate_images_norm, validate_biomasses_norm, test_images_norm, \
-    test_biomasses_norm, infer_images_norm = get_dataset(channel_first=channel_first)
+    dataset, infer_images_norm = get_dataset(channel_first=channel_first)
 
-    train_images_norm = np.concatenate([train_images_norm, test_images_norm], axis=0)
-    train_biomasses_norm = np.concatenate([train_biomasses_norm, test_biomasses_norm], axis=0)
     if not channel_first:
-        input_shape = (train_images_norm.shape[1], train_images_norm.shape[2], train_images_norm.shape[3])
+        input_shape = (infer_images_norm.shape[1], infer_images_norm.shape[2], infer_images_norm.shape[3])
     else:
-        input_shape = (train_images_norm.shape[1], train_images_norm.shape[2])
+        input_shape = (infer_images_norm.shape[1], infer_images_norm.shape[2])
     wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
+    i=0
+    for x_train, y_train, x_val, y_val in iter(dataset):
+        if model_name == 'gru_custom':
+            gru = GRUModel(input_shape, num_classes)
+            model = gru.get_model_custom(input_shape, num_classes, num_layers, hidden_size, return_sequences=False)
+        elif model_name == 'lstm_custom':
+            lstm = LSTMModel(input_shape, num_classes)
+            model = lstm.get_model_custom(input_shape, num_classes, num_layers, hidden_size, return_sequences=False)
+        elif model_name=='vit_tiny_custom':
+            model = vit.vit_tiny_custom(
+                input_shape=input_shape,
+                patch_size=3,
+                num_patches=infer_images_norm.shape[2]//3**2,
+                classes=num_classes,
+                activation='linear',
+                pretrained=True,
+                include_top=True,
+                pretrained_top=True,
+                num_heads=num_heads,
+                mlp_dim=mlp_dim,
+                num_layers=num_layers,
+                hidden_size=hidden_size
+            )
+        model.summary()
+        optimizer = tf.optimizers.Adam(learning_rate=learning_rate)
 
-    if model_name == 'gru_custom':
-        gru = GRUModel(input_shape, num_classes)
-        model = gru.get_model_custom(input_shape, num_classes, num_layers, hidden_size, return_sequences=False)
-    elif model_name == 'lstm_custom':
-        lstm = LSTMModel(input_shape, num_classes)
-        model = lstm.get_model_custom(input_shape, num_classes, num_layers, hidden_size, return_sequences=False)
-    elif model_name=='vit_tiny_custom':
-        model = vit.vit_tiny_custom(
-            input_shape=input_shape,
-            patch_size=3,
-            num_patches=train_images_norm.shape[2]//3**2,
-            classes=num_classes,
-            activation='linear',
-            pretrained=True,
-            include_top=True,
-            pretrained_top=True,
-            num_heads=num_heads,
-            mlp_dim=mlp_dim,
-            num_layers=num_layers,
-            hidden_size=hidden_size
+        def root_mean_squared_log_error(y_true, y_pred):
+            return K.sqrt(K.mean(K.square(y_pred - y_true)))
+
+        model.compile(
+            optimizer=optimizer,
+            loss=tf.keras.losses.MeanSquaredError(),
+            metrics=[
+                tf.keras.metrics.RootMeanSquaredError(name="rmse")
+            ],
         )
-    model.summary()
-    optimizer = tf.optimizers.Adam(learning_rate=learning_rate)
+        checkpoint = ModelCheckpoint(os.path.join(root_path.replace('africa-biomass-challenge', 'abc_challenge_models'), 'abc_' + 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size), 'fold_'+str(i)),
+                                     monitor="val_loss", mode="min", save_best_only=True, verbose=1)
 
-    def root_mean_squared_log_error(y_true, y_pred):
-        return K.sqrt(K.mean(K.square(y_pred - y_true)))
+        history = model.fit(
+            x=x_train,
+            y=y_train,
+            validation_data=(x_val, y_val),
+            epochs=MAX_EPOCHS,
+            callbacks=[checkpoint, WandbCallback()],
+        )
+        # model.save(os.path.join(root_path, 'proj3_' + model_name + str(hidden_size) + '_' + str(num_layers)))
 
-    model.compile(
-        optimizer=optimizer,
-        loss=root_mean_squared_log_error,
-        metrics=[
-            tf.keras.metrics.RootMeanSquaredError(name="rmse")
-        ],
-    )
-    checkpoint = ModelCheckpoint(os.path.join(root_path.replace('africa-biomass-challenge', 'abc_challenge_models'), 'abc_' + 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)),
-                                 monitor="val_loss", mode="min", save_best_only=True, verbose=1)
-    history = model.fit(
-        x=train_images_norm,
-        y=train_biomasses_norm,
-        validation_data=(validate_images_norm, validate_biomasses_norm),
-        epochs=MAX_EPOCHS,
-        callbacks=[checkpoint, WandbCallback()],
-    )
-    # model.save(os.path.join(root_path, 'proj3_' + model_name + str(hidden_size) + '_' + str(num_layers)))
+        model.load_weights(os.path.join(root_path.replace('africa-biomass-challenge', 'abc_challenge_models'), 'abc_' + 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size), 'fold_'+str(i)))
 
-    model.load_weights(os.path.join(root_path.replace('africa-biomass-challenge', 'abc_challenge_models'), 'abc_' + 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)))
-
-    # score = model.evaluate(test_images_norm, test_biomasses_norm, verbose=0)
-    # print('Test loss:', score[0])
-    # print('Test accuracy:', score[1])
-    # wandb.run.log({'Test loss': score[0], 'Test accuracy': score[1]})
-
-    pred_giz = model.predict(infer_images_norm)
-    ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
-    preds = pd.DataFrame({'Target': pred_giz[:,0]}).rename_axis('S2_idx').reset_index()
-    preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
-    if not os.path.exists('africa-biomass-challenge/predictions'):
-        os.mkdir('africa-biomass-challenge/predictions')
-    preds.to_csv('africa-biomass-challenge/predictions/biomass_predictions'+ model_name + 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)+'.csv', index=False)
+        pred_giz = model.predict(infer_images_norm)
+        ID_S2_pair = pd.read_csv('africa-biomass-challenge/UniqueID-SentinelPair.csv')
+        preds = pd.DataFrame({'Target': pred_giz[:,0]}).rename_axis('S2_idx').reset_index()
+        preds = ID_S2_pair.merge(preds, on='S2_idx').drop(columns=['S2_idx'])
+        if not os.path.exists('africa-biomass-challenge/predictions'):
+            os.mkdir('africa-biomass-challenge/predictions')
+        preds.to_csv('africa-biomass-challenge/predictions/biomass_predictions'+ model_name + 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)+'_fold_'+str(i)+'.csv', index=False)
+        i+=1
