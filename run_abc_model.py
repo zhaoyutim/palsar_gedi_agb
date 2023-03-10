@@ -27,10 +27,10 @@ if platform.system() == 'Darwin':
 else:
     root_path = '/geoinfo_vol1/zhao2/abc_challenge_models'
 
-def wandb_config(model_name, num_layers, hidden_size):
+def wandb_config(model_name, num_layers, hidden_size, validation_fold):
     wandb.login()
     wandb.init(project="abc_challenge_"+model_name+"_grid_search", entity="zhaoyutim")
-    wandb.run.name = 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)
+    wandb.run.name = 'num_heads_' + str(num_heads) + 'num_layers_'+ str(num_layers)+ 'mlp_dim_'+str(mlp_dim)+'hidden_size_'+str(hidden_size)+'batchsize_'+str(batch_size)+str(validation_fold)
     wandb.config = {
         "learning_rate": learning_rate,
         "weight_decay": weight_decay,
@@ -127,19 +127,22 @@ if __name__=='__main__':
     lr = args.lr
     learning_rate = lr
     weight_decay = lr/10
-    MAX_EPOCHS = 50
-    channel_first = True
+    MAX_EPOCHS = 1
 
+    if model_name == 'vit_tiny_custom':
+        channel_first = False
+    else:
+        channel_first = True
     dataset, infer_images_norm = get_dataset(channel_first=channel_first)
 
     if not channel_first:
         input_shape = (infer_images_norm.shape[1], infer_images_norm.shape[2], infer_images_norm.shape[3])
     else:
         input_shape = (infer_images_norm.shape[1], infer_images_norm.shape[2])
-    wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size)
 
     i=0
     for x_train, y_train, x_val, y_val in iter(dataset):
+        wandb_config(model_name, num_layers=num_layers, hidden_size=hidden_size, validation_fold=i)
         if model_name == 'gru_custom':
             gru = GRUModel(input_shape, num_classes)
             model = gru.get_model_custom(input_shape, num_classes, num_layers, hidden_size, return_sequences=False)
