@@ -1,5 +1,7 @@
 # Wall-to-Wall Above-ground Biomass Estimation with ALOS-2 PALSAR-2 L-Band SAR Data and GEDI
 
+## This work is accepted in IEEE International Symposium on Geoscience and Remote Sensing (IGARSS) 2023 
+## DOI: 10.1109/IGARSS52108.2023.10282061
 ## Repo Structure
     .
     ├── config                                     # Configuration files 
@@ -48,9 +50,7 @@ On the left hand side, is the result with 100% GEDI L2A RH data, on the right ha
 
 ## Author
 
-#### Yu Zhao (zhao2@kth.se), Yifang Ban, Puzhao Zhang, KTH Royal Institute of Technology, Stockholm, Sweden
-#### Xin Guo, Liheng Zhong, Jian Wang, JingDong Chen, Ant Group, Hangzhou, China
+#### Yu Zhao (zhao2@kth.se), Xin Guo, Liheng Zhong, Jian Wang, JingDong Chen, Ant Group, Hangzhou, China
 
 ## Acknowledgement
-#### The research is part of the project ‘Sentinel4Wildfire’ funded by Formas, the Swedish research council for sustainable development and the project ‘EO-AI4Global Change’ funded by Digital Futures.
 #### Work is done during intership at Ant Group
