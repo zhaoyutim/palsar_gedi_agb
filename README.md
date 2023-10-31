@@ -1,7 +1,7 @@
 # Wall-to-Wall Above-ground Biomass Estimation with ALOS-2 PALSAR-2 L-Band SAR Data and GEDI
 
 ## This work is accepted in IEEE International Symposium on Geoscience and Remote Sensing (IGARSS) 2023 
-## DOI: 10.1109/IGARSS52108.2023.10282061
+## DOI: [10.1109/IGARSS52108.2023.10282061](https://doi.org/10.1109/IGARSS52108.2023.10282061)
 ## Repo Structure
     .
     ├── config                                     # Configuration files 
