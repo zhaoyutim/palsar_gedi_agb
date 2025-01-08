@@ -159,7 +159,7 @@ def export_label():
         print('Start with image task (id: {}).'.format(i))
 def get_fake_label():
     fake_label = np.zeros(90)
-    file_list = glob.glob('/Users/zhaoyu/PycharmProjects/palsar_gedi_agb/fake_labels/*.tif')
+    file_list = glob.glob('/Users/zhaoyu/PycharmProjects/PALSAR-GEDI-AGB/fake_labels/*.tif')
     for i, file in enumerate(file_list):
         array, _ = read_tiff(file)
         fake_label[i] = np.nanmean(array[1, :, :])
@@ -177,7 +177,7 @@ def get_fake_label():
 
 if __name__=='__main__':
     get_fake_label()
-    # file_list = glob.glob('/Users/zhaoyu/PycharmProjects/palsar_gedi_agb/label/*.tif')
+    # file_list = glob.glob('/Users/zhaoyu/PycharmProjects/PALSAR-GEDI-AGB/label/*.tif')
     # for file in file_list:
     #     upload_to_gcloud(file)
         # upload_to_gee(file)

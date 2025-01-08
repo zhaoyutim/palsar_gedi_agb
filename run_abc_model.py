@@ -23,7 +23,7 @@ from model.vit_keras import vit
 
 warnings.filterwarnings('ignore')
 if platform.system() == 'Darwin':
-    root_path = '/Users/zhaoyu/PycharmProjects/palsar_gedi_agb/africa-biomass-challenge'
+    root_path = '/Users/zhaoyu/PycharmProjects/PALSAR-GEDI-AGB/africa-biomass-challenge'
 else:
     root_path = '/geoinfo_vol1/zhao2/abc_challenge_models'
 
